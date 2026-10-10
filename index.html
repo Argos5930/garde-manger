@@ -1,0 +1,304 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Garde-manger</title>
+<meta name="description" content="Calories, plats, courses, scan de produits et habitudes alimentaires. Tes données restent sur ton téléphone.">
+<meta name="theme-color" content="#2D6A4F" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#0F1612" media="(prefers-color-scheme: dark)">
+<meta name="robots" content="noindex,nofollow">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icons/icon-192.png">
+<link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,700;12..96,800&family=Source+Sans+3:wght@400;600;700&family=JetBrains+Mono:wght@500&display=swap">
+<link rel="stylesheet" href="css/app.css">
+</head>
+<body>
+<div class="wrap">
+  <header class="top">
+    <div class="brand"><img src="icons/icon-192.png" alt=""><h1>Garde-manger</h1></div>
+    <button class="btn ghost small" id="installBtn" hidden>Installer</button>
+  </header>
+
+  <nav class="tabs" role="tablist" id="tabs">
+    <button role="tab" data-t="objectif">Objectif</button>
+    <button role="tab" data-t="plats">Plats</button>
+    <button role="tab" data-t="scanner">Scanner</button>
+    <button role="tab" data-t="courses">Courses</button>
+    <button role="tab" data-t="habitudes">Habitudes</button>
+    <button role="tab" data-t="plaisir">Plaisir</button>
+    <button role="tab" data-t="frigo">Frigo</button>
+    <button role="tab" data-t="batch">Batch cooking</button>
+    <button role="tab" data-t="importer">Importer</button>
+    <button role="tab" data-t="saison">Saison</button>
+    <button role="tab" data-t="reglages">Réglages</button>
+  </nav>
+
+  <!-- OBJECTIF -->
+  <section class="pane" id="objectif" hidden>
+    <div class="card">
+      <div class="row between"><h2>Ton profil</h2><span class="ex" id="exTag">Valeurs d'exemple</span></div>
+      <div class="grid2">
+        <label class="f">Sexe<select id="p-sexe"><option value="h">Homme</option><option value="f">Femme</option></select></label>
+        <label class="f">Âge<input id="p-age" type="number" min="14" max="100" inputmode="numeric"></label>
+        <label class="f">Taille (cm)<input id="p-taille" type="number" min="120" max="230" inputmode="numeric"></label>
+        <label class="f">Poids (kg)<input id="p-poids" type="number" min="35" max="250" step="0.5" inputmode="decimal"></label>
+        <label class="f">Activité<select id="p-act">
+          <option value="1.2">Sédentaire (bureau, peu de marche)</option>
+          <option value="1.375">Légère (1 à 3 séances / sem.)</option>
+          <option value="1.55">Modérée (3 à 5 séances / sem.)</option>
+          <option value="1.725">Élevée (sport quasi quotidien)</option>
+          <option value="1.9">Très élevée (métier physique + sport)</option>
+        </select></label>
+        <label class="f">Objectif<select id="p-obj">
+          <option value="maintien">Garder mon poids</option>
+          <option value="perte">Perdre doucement</option>
+          <option value="prise">Prendre du poids / du muscle</option>
+        </select></label>
+      </div>
+    </div>
+    <div class="card">
+      <h2>Ton budget calories</h2>
+      <div class="kpis">
+        <div class="kpi hero"><span class="l">Par semaine</span><span class="v" id="k-week">–</span></div>
+        <div class="kpi"><span class="l">Par jour en moyenne</span><span class="v" id="k-day">–</span></div>
+        <div class="kpi"><span class="l">Protéines / jour</span><span class="v" id="k-prot">–</span></div>
+        <div class="kpi"><span class="l">Eau / jour</span><span class="v" id="k-eau">–</span></div>
+      </div>
+      <p class="note" id="k-explain"></p>
+    </div>
+    <div class="card">
+      <h3>Répartir ta semaine</h3>
+      <p class="note">Choisis les jours où tu prévois un repas plus copieux (resto, apéro, dîner chez des amis). La marge plaisir, 10 % de ta semaine, s'y concentre et les autres jours restent stables.</p>
+      <div class="chips" id="pdays"></div>
+      <div class="bars" id="bars" aria-label="Calories par jour"></div>
+      <div class="row note"><span><span class="pill" style="background:var(--accent);color:var(--accent-ink)">base</span> repas habituels</span><span><span class="pill" style="background:var(--warm);color:#fff">plaisir</span> marge du jour choisi</span></div>
+    </div>
+    <p class="note">Estimation par la formule de Mifflin-St Jeor ajustée à ton activité. C'est un ordre de grandeur, qui ne remplace pas l'avis d'un médecin ou d'un diététicien, surtout en cas de pathologie, de grossesse ou d'objectif sportif précis.</p>
+  </section>
+
+  <!-- PLATS -->
+  <section class="pane" id="plats" hidden>
+    <div class="card">
+      <h2>Ce que tu peux cuisiner</h2>
+      <div class="grid2">
+        <label class="f">En cuisine, tu…<select id="f-niv"><option value="1">ne sais pas cuisiner</option><option value="2">te débrouilles</option><option value="3">aimes cuisiner</option></select></label>
+        <label class="f">Temps disponible<select id="f-temps"><option value="15">15 min</option><option value="25">25 min</option><option value="40">40 min</option><option value="60">1 h</option><option value="999">Pas de limite</option></select></label>
+      </div>
+      <input id="f-q" type="search" placeholder="Chercher un plat ou un ingrédient">
+      <div class="chips" id="f-cat"></div>
+      <div class="chips">
+        <button class="chip" data-flt="vege" aria-pressed="false">Végétarien</button>
+        <button class="chip" data-flt="saison" aria-pressed="false">De saison</button>
+        <button class="chip" data-flt="batch" aria-pressed="false">Se garde plusieurs jours</button>
+        <button class="chip" data-flt="light" aria-pressed="false">Léger (≤ 450 kcal)</button>
+      </div>
+      <p class="note" id="mealTarget"></p>
+    </div>
+    <div class="card">
+      <div class="row between"><h3 id="dishCount">Plats</h3><span class="note">Note : méthode Nutri-Score appliquée au plat</span></div>
+      <div class="list" id="dishList"></div>
+      <button class="btn ghost" id="moreDishes" hidden>Voir plus de plats</button>
+    </div>
+    <div class="card">
+      <div class="row between"><h3>Ma semaine</h3><button class="btn ghost small" id="clearWeek">Vider</button></div>
+      <div class="week" id="weekList"></div>
+      <p class="note">Ces plats remplissent ta liste de courses et ton plan de batch cooking.</p>
+    </div>
+  </section>
+
+  <!-- SCANNER -->
+  <section class="pane" id="scanner" hidden>
+    <div class="card">
+      <h2>Scanner un produit</h2>
+      <p class="sub">Vise le code-barres d'un produit : tu obtiens son Nutri-Score officiel, des produits mieux notés du même rayon et des recettes pour l'utiliser.</p>
+      <button class="btn big" id="scanBtn">Ouvrir la caméra</button>
+      <div class="row">
+        <input id="scanCode" inputmode="numeric" placeholder="Ou tape le code-barres, ou un nom de produit" style="flex:1">
+        <button class="btn ghost" id="scanGo">Chercher</button>
+      </div>
+      <p class="err" id="scanErr" hidden></p>
+    </div>
+    <div id="scanResult"></div>
+    <div class="card" id="scanHistCard">
+      <h3>Derniers produits</h3>
+      <div class="list" id="scanHist"></div>
+    </div>
+    <p class="note">Données produits : <a href="https://fr.openfoodfacts.org" target="_blank" rel="noopener">Open Food Facts</a>, base collaborative sous licence ODbL. Une connexion Internet est nécessaire pour cette partie.</p>
+  </section>
+
+  <!-- COURSES -->
+  <section class="pane" id="courses" hidden>
+    <div class="card">
+      <h2>Liste de courses</h2>
+      <div class="grid2">
+        <label class="f">Magasin<select id="c-mag">
+          <option value="discount">Hard-discount (Lidl, Aldi…)</option>
+          <option value="super">Supermarché / hyper</option>
+          <option value="proxi">Supérette de proximité</option>
+          <option value="bio">Magasin bio</option>
+          <option value="marche">Marché</option>
+        </select></label>
+        <label class="f">Personnes au foyer<input id="c-pers" type="number" min="1" max="10" inputmode="numeric"></label>
+      </div>
+      <p class="note" id="c-tip"></p>
+      <div class="kpis">
+        <div class="kpi"><span class="l">Plats prévus</span><span class="v" id="c-nb">0</span></div>
+        <div class="kpi"><span class="l">Budget estimé</span><span class="v" id="c-cout">–</span></div>
+      </div>
+      <p class="note">Prix moyens indicatifs ajustés au type de magasin, sans lien avec les tarifs réels de l'enseigne.</p>
+    </div>
+    <div class="card">
+      <div class="row"><input id="c-add" placeholder="Ajouter un article (ex. : papier toilette)" style="flex:1"><button class="btn ghost" id="c-addBtn">Ajouter</button></div>
+    </div>
+    <div class="card shop" id="shopList"></div>
+    <div class="row"><button class="btn" id="c-copy">Copier la liste</button><button class="btn ghost" id="c-clean">Retirer les articles cochés</button></div>
+  </section>
+
+  <!-- HABITUDES -->
+  <section class="pane" id="habitudes" hidden>
+    <div class="card">
+      <h2>Ce que tu manges souvent</h2>
+      <p class="sub">Note un plat ou une habitude (« kebab frites », « pâtes au beurre et jambon », « céréales chocolatées »). L'appli calcule sa note à partir de la table Ciqual et la compare aux repères du Programme national nutrition santé.</p>
+      <div class="grid2">
+        <label class="f" style="grid-column:1/-1">Plat ou habitude<input id="h-plat" placeholder="Ex. : pâtes au beurre et jambon"></label>
+        <label class="f">Fois par semaine<select id="h-freq"><option>1</option><option>2</option><option selected>3</option><option>4</option><option>5</option><option>6</option><option>7</option><option value="10">plus d'une fois par jour</option></select></label>
+        <label class="f">Moment<select id="h-moment"><option>déjeuner</option><option selected>dîner</option><option>petit-déjeuner</option><option>grignotage</option></select></label>
+      </div>
+      <button class="btn" id="h-btn">Analyser</button>
+      <p class="err" id="h-err" hidden></p>
+    </div>
+    <div id="h-list"></div>
+  </section>
+
+  <!-- PLAISIR -->
+  <section class="pane" id="plaisir" hidden>
+    <div class="card">
+      <h2>Se faire plaisir sans déraper</h2>
+      <div class="kpis">
+        <div class="kpi warmk"><span class="l">Marge plaisir / semaine</span><span class="v" id="pl-budget">–</span></div>
+        <div class="kpi"><span class="l">Déjà prévu</span><span class="v" id="pl-used">0</span></div>
+      </div>
+      <div class="gauge" id="pl-gauge"><div style="width:0"></div></div>
+      <p class="note" id="pl-msg"></p>
+      <div class="treats" id="treats"></div>
+      <div class="row"><button class="btn ghost small" id="pl-reset">Remettre à zéro</button></div>
+    </div>
+    <div class="card">
+      <h3>Ce qui aide vraiment</h3>
+      <ul class="tips">
+        <li><b>Prévois tes plaisirs.</b> Un dessert décidé le lundi pour le samedi se savoure mieux qu'une tablette entamée par réflexe un mardi soir, et il entre dans le budget.</li>
+        <li><b>Sers-toi une portion</b> dans une assiette ou un bol, puis range le paquet : manger au sachet fait perdre le compte.</li>
+        <li><b>Mange-le assis, sans écran.</b> L'attention portée au goût rassasie plus vite qu'on ne croit.</li>
+        <li><b>Après un repas copieux,</b> reprends simplement ton rythme au repas suivant. Sauter un repas pour compenser pousse surtout à grignoter le soir.</li>
+        <li><b>Choisis la version qui te fait le plus envie</b> plutôt qu'une version allégée décevante, quitte à en prendre moins.</li>
+        <li>L'alcool compte double : ses calories s'ajoutent et il ouvre l'appétit. Un verre d'eau entre deux verres limite les deux effets.</li>
+      </ul>
+    </div>
+  </section>
+
+  <!-- FRIGO -->
+  <section class="pane" id="frigo" hidden>
+    <div class="card">
+      <h2>Qu'est-ce que je fais avec ce qui reste ?</h2>
+      <label class="f">Ce que tu as sous la main<textarea id="fr-in" style="min-height:80px" placeholder="Ex. : oeufs, courgette, riz, emmental, oignon, tomates"></textarea></label>
+      <p class="note">Sel, poivre, huile et épices sont comptés comme acquis.</p>
+      <div class="row"><button class="btn" id="fr-go">Trouver des plats</button><button class="btn ghost" id="fr-claude">Demander à Claude</button></div>
+      <div id="fr-out"></div>
+    </div>
+  </section>
+
+  <!-- BATCH -->
+  <section class="pane" id="batch" hidden>
+    <div class="card">
+      <h2>Batch cooking</h2>
+      <p class="sub">À partir des plats de ta semaine, l'appli organise une session de préparation : ce qui cuit longtemps part en premier, tu prépares la suite pendant la cuisson.</p>
+      <div class="week" id="batchWeek"></div>
+      <div class="row"><button class="btn" id="b-go">Organiser ma session</button><button class="btn ghost" id="b-claude">Demander à Claude</button></div>
+      <div id="b-out"></div>
+    </div>
+    <div class="card">
+      <h3>Les règles de base</h3>
+      <ul class="tips">
+        <li>Lance d'abord ce qui cuit longtemps sans surveillance (mijotés, plaque au four), puis épluche et coupe pendant ce temps.</li>
+        <li>Prépare des briques à assembler plutôt que des plats figés : une céréale, une protéine, deux légumes, une sauce. Les combinaisons évitent la lassitude du jeudi.</li>
+        <li>Au réfrigérateur, compte 3 jours pour la viande et le poisson cuits, 4 pour les légumes et légumineuses. Ce qui doit tenir jusqu'au vendredi part au congélateur.</li>
+        <li>Laisse refroidir moins de deux heures avant de mettre au froid, en boîtes peu profondes.</li>
+      </ul>
+    </div>
+  </section>
+
+  <!-- IMPORTER -->
+  <section class="pane" id="importer" hidden>
+    <div class="card">
+      <h2>Importer une recette</h2>
+      <p class="sub">Depuis Marmiton, Jow ou n'importe quel site : sélectionne le texte de la recette, puis touche Partager et choisis Garde-manger. Tu peux aussi le coller ici.</p>
+      <textarea id="r-in" placeholder="Titre, nombre de personnes, ingrédients, étapes"></textarea>
+      <p class="note" id="r-urlnote" hidden></p>
+      <button class="btn" id="r-go">Analyser la recette</button>
+      <div id="r-out"></div>
+    </div>
+    <div class="card">
+      <h3>Mon carnet</h3>
+      <div class="list" id="carnet"></div>
+    </div>
+  </section>
+
+  <!-- SAISON -->
+  <section class="pane" id="saison" hidden>
+    <div class="card">
+      <div class="row between"><h2 id="s-title">De saison</h2><select id="s-month" style="width:auto"></select></div>
+      <div class="season">
+        <div><h3>Légumes</h3><ul id="s-leg"></ul></div>
+        <div><h3>Fruits</h3><ul id="s-fru"></ul></div>
+      </div>
+      <p class="note">Calendrier pour la France métropolitaine. De saison, un légume coûte en général moins cher et a plus de goût.</p>
+      <button class="btn ghost" id="s-plats">Voir les plats de saison</button>
+    </div>
+  </section>
+
+  <!-- RÉGLAGES -->
+  <section class="pane" id="reglages" hidden>
+    <div class="card">
+      <h2>Tes données</h2>
+      <p class="sub">Tout ce que tu saisis reste dans ce téléphone : rien n'est envoyé sur Internet, sauf les codes-barres que tu cherches sur Open Food Facts. Pense à faire une sauvegarde de temps en temps, par exemple avant de changer de téléphone.</p>
+      <div class="row"><button class="btn" id="g-export">Sauvegarder dans un fichier</button><button class="btn ghost" id="g-importBtn">Restaurer un fichier</button></div>
+      <input type="file" id="g-file" accept="application/json,.json" hidden>
+      <p class="note" id="g-persist"></p>
+    </div>
+    <div class="card">
+      <h3>Reprendre les données de la version dans Claude</h3>
+      <p class="note">Dans l'ancienne version (dans Claude), ouvre l'onglet Objectif et touche « Exporter mes données » : le texte est copié. Colle-le ici.</p>
+      <textarea id="g-paste" style="min-height:80px" placeholder="Colle ici le texte copié"></textarea>
+      <button class="btn ghost" id="g-pasteGo">Importer</button>
+    </div>
+    <div class="card">
+      <h3>Tout effacer</h3>
+      <p class="note">Supprime ton profil, tes plats, tes habitudes et ta liste de courses de ce téléphone.</p>
+      <div class="row"><button class="btn ghost" id="g-reset">Effacer mes données</button><button class="btn warm small" id="g-resetOk" hidden>Confirmer l'effacement</button></div>
+    </div>
+    <div class="card">
+      <h3>Sources</h3>
+      <p class="note">Valeurs nutritionnelles : table de composition Ciqual 2025 de l'ANSES (Licence Ouverte 2.0). Note des plats calculée avec la méthode du Nutri-Score 2023 appliquée à la recette : c'est une estimation, le logo officiel ne concerne que les produits emballés. Produits scannés : Open Food Facts (ODbL). Repères de consommation : Programme national nutrition santé (Manger Bouger).</p>
+      <p class="note" id="g-version"></p>
+    </div>
+  </section>
+</div>
+
+<dialog id="sheet"><div class="sheet" id="sheetBody"></div></dialog>
+
+<div class="scanner" id="scanView" hidden>
+  <video id="scanVideo" playsinline muted></video>
+  <div class="frame"></div>
+  <div class="bar">
+    <p id="scanMsg">Place le code-barres dans le cadre</p>
+    <button class="btn" id="scanClose">Fermer</button>
+  </div>
+</div>
+
+<script src="js/nutri.js"></script>
+<script src="js/app.js"></script>
+</body>
+</html>

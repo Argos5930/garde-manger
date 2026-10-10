@@ -1,0 +1,28 @@
+{
+  "name": "Garde-manger",
+  "short_name": "Garde-manger",
+  "description": "Calories, plats, courses, scan de produits et habitudes alimentaires.",
+  "lang": "fr",
+  "id": "./",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#F4F7F1",
+  "theme_color": "#2D6A4F",
+  "categories": ["food", "health", "lifestyle"],
+  "icons": [
+    {"src": "icons/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any"},
+    {"src": "icons/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any"},
+    {"src": "icons/maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable"}
+  ],
+  "share_target": {
+    "action": "./",
+    "method": "GET",
+    "params": {"title": "title", "text": "text", "url": "url"}
+  },
+  "shortcuts": [
+    {"name": "Scanner un produit", "url": "./#scanner", "icons": [{"src": "icons/icon-192.png", "sizes": "192x192"}]},
+    {"name": "Liste de courses", "url": "./#courses", "icons": [{"src": "icons/icon-192.png", "sizes": "192x192"}]}
+  ]
+}
