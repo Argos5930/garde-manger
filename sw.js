@@ -1,6 +1,6 @@
 /* Garde-manger : fonctionnement hors connexion */
-const VERSION = "gm-1.0.0";
-const SHELL = ["./", "index.html", "css/app.css", "js/nutri.js", "js/app.js", "manifest.webmanifest",
+const VERSION = "gm-1.1.0";
+const SHELL = ["./", "index.html", "css/app.css", "js/nutri.js", "js/menu.js", "js/app.js", "data/produits.json", "manifest.webmanifest",
   "data/ingredients.json", "data/recettes.json", "data/ciqual.json",
   "icons/icon-192.png", "icons/icon-512.png", "icons/maskable-512.png", "icons/apple-touch-icon.png"];
 self.addEventListener("install", e => { e.waitUntil(caches.open(VERSION).then(c => c.addAll(SHELL)).then(() => self.skipWaiting())); });

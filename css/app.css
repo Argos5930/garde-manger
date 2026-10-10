@@ -135,3 +135,27 @@ dialog::backdrop{background:var(--overlay)}
 .toast{position:fixed;left:50%;transform:translateX(-50%);bottom:calc(18px + env(safe-area-inset-bottom,0px));background:var(--ink);color:var(--bg);padding:10px 16px;border-radius:999px;font-weight:600;font-size:.9rem;z-index:30;max-width:calc(100% - 32px);text-align:center}
 .skel{color:var(--muted);font-style:italic}
 @media (prefers-reduced-motion:reduce){*{transition:none!important;animation:none!important}}
+
+.day{display:grid;gap:8px}
+.day h3{font-size:1rem;text-transform:uppercase;letter-spacing:.06em;color:var(--muted)}
+.slot{background:var(--surface);border:1px solid var(--line);border-radius:var(--r);padding:12px;display:grid;gap:8px}
+.slot.fixe{border-color:var(--accent);box-shadow:inset 3px 0 0 var(--accent)}
+.slot .sh{display:flex;justify-content:space-between;align-items:center;gap:8px}
+.slot .lab{font-size:.78rem;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--muted)}
+.slot ul{list-style:none;margin:0;padding:0;display:grid;gap:4px}
+.slot li{display:flex;justify-content:space-between;gap:10px}
+.slot li .q{font-family:var(--f-num);font-size:.8rem;color:var(--muted);white-space:nowrap}
+.slot .how{font-size:.8rem;color:var(--muted)}
+.slot .acts{display:flex;gap:6px;flex-wrap:wrap}
+.tag{font-size:.72rem;font-weight:700;padding:1px 8px;border-radius:999px;background:var(--soft);color:var(--accent)}
+.prow{display:grid;grid-template-columns:1fr auto auto;gap:6px;align-items:center;padding:7px 0;border-bottom:1px dashed var(--line)}
+.ic{border:1px solid var(--line);background:var(--bg);color:var(--muted);border-radius:8px;width:36px;height:34px;font-size:1rem;cursor:pointer}
+.ic[aria-pressed="true"].fav{color:var(--warm);border-color:var(--warm);background:var(--warm-soft)}
+.ic[aria-pressed="true"].no{color:var(--danger);border-color:var(--danger)}
+.qty{display:flex;align-items:center;gap:6px}
+.qty button{width:32px;height:32px;border-radius:8px;border:1px solid var(--line);background:var(--bg);color:var(--ink);font-size:1.1rem;cursor:pointer}
+.pick{max-height:45vh;overflow:auto;display:grid}
+.pick button{text-align:left;font:inherit;background:transparent;border:0;border-bottom:1px dashed var(--line);padding:9px 2px;color:var(--ink);cursor:pointer;display:flex;justify-content:space-between;gap:10px}
+.pick button .note{white-space:nowrap}
+.prices{display:grid;gap:4px}
+.prices .pr{display:flex;justify-content:space-between;gap:10px;font-size:.9rem;padding:4px 0;border-bottom:1px dashed var(--line)}

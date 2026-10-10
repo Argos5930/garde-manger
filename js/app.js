@@ -1,13 +1,17 @@
 /* Garde-manger : interface. Toutes les données restent dans le téléphone (localStorage). */
 (function () {
 "use strict";
-const VERSION = "1.0.0";
+const VERSION = "1.1.0";
 const $ = s => document.querySelector(s);
 const $$ = s => [...document.querySelectorAll(s)];
 const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
 const fmt = n => Math.round(n).toLocaleString("fr-FR");
 const dec = (n, d = 1) => (+n).toFixed(d).replace(".", ",");
 const N = window.Nutri;
+const MN = window.Menu;
+let CATALOG = [];
+const DAYN = ["Lundi", "Mardi", "Mercredi", "Jeudi", "Vendredi", "Samedi", "Dimanche"];
+const MEALN = { dej: "Déjeuner", din: "Dîner" };
 
 /* ---------- Données fixes ---------- */
 const DAYS = ["Lun", "Mar", "Mer", "Jeu", "Ven", "Sam", "Dim"];
@@ -45,7 +49,8 @@ const DEFAULT = {
   p: { sexe: "h", age: 30, taille: 175, poids: 72, act: "1.375", obj: "maintien" },
   f: { niv: "1", temps: "40", cat: "tout", vege: false, saison: false, batch: false, light: false },
   pdays: [5], semaine: [], habitudes: [], plaisirs: {}, carnet: [],
-  courses: { mag: "super", pers: 1, coche: {}, extra: [] }, scans: []
+  courses: { mag: "super", pers: 2, autre: 1, coche: {}, extra: [] }, scans: [],
+  menu: { slots: {}, pct: 70, recettes: false, fav: [], excl: [] }, mesProduits: [], prix: {}
 };
 const clone = o => JSON.parse(JSON.stringify(o));
 let S = clone(DEFAULT);
@@ -56,6 +61,11 @@ function merge(o) {
   S.courses = Object.assign({}, DEFAULT.courses, o.courses);
   for (const k of ["semaine", "habitudes", "carnet", "scans", "pdays"]) if (!Array.isArray(S[k])) S[k] = clone(DEFAULT[k]);
   if (!Array.isArray(S.courses.extra)) S.courses.extra = [];
+  S.menu = Object.assign(clone(DEFAULT.menu), o.menu || {});
+  for (const k of ["fav", "excl"]) if (!Array.isArray(S.menu[k])) S.menu[k] = [];
+  if (!S.menu.slots || typeof S.menu.slots !== "object") S.menu.slots = {};
+  if (!Array.isArray(S.mesProduits)) S.mesProduits = [];
+  if (!S.prix || typeof S.prix !== "object") S.prix = {};
 }
 function load() { try { const raw = localStorage.getItem(KEY); if (raw) merge(JSON.parse(raw)); } catch (e) {} }
 let saveT;
@@ -143,9 +153,214 @@ function renderObjectif() {
 function bindObjectif() {
   ["#p-sexe", "#p-age", "#p-taille", "#p-poids", "#p-act", "#p-obj"].forEach(id => $(id).addEventListener("change", () => {
     S.p = { sexe: $("#p-sexe").value, age: +$("#p-age").value || 30, taille: +$("#p-taille").value || 170, poids: +$("#p-poids").value || 70, act: $("#p-act").value, obj: $("#p-obj").value };
-    S.exemple = false; renderObjectif(); renderPlaisir(); renderPlats(); save();
+    S.exemple = false; renderObjectif(); renderPlaisir(); renderPlats(); renderMenu(); save();
   }));
   $("#pdays").addEventListener("click", e => { const b = e.target.closest("[data-d]"); if (!b) return; const d = +b.dataset.d; S.pdays = S.pdays.includes(d) ? S.pdays.filter(x => x !== d) : [...S.pdays, d]; renderObjectif(); save(); });
+}
+
+/* ---------- Menu de la semaine ---------- */
+function refreshProducts() { MN.setProducts([...CATALOG, ...S.mesProduits]); }
+const favSet = () => new Set(S.menu.fav), exclSet = () => new Set(S.menu.excl);
+function qFrac(q) {
+  const whole = Math.floor(q + 1e-9), r = Math.round((q - whole) * 4) / 4;
+  const f = { 0: "", 0.25: "¼", 0.5: "½", 0.75: "¾" }[r] || "";
+  return (whole ? whole + (f ? " " : "") : "") + f;
+}
+function itemLine(it) {
+  if (it.k === "p") { const p = MN.product(it.id); if (!p) return null; const g = p.portion * (it.q || 1); return { nom: p.nom, q: `${qFrac(it.q || 1)} portion${(it.q || 1) > 1 ? "s" : ""} · ${Math.round(g / 5) * 5} g`, how: p.conseil || MN.MODE_LABEL[p.mode] }; }
+  if (it.k === "r") { const r = N.recipe(it.id); if (!r) return null; return { nom: r.nom, q: `${qFrac(it.q || 1)} portion${(it.q || 1) > 1 ? "s" : ""}`, how: `Recette, ${timeTxt(totalTime(r))}`, rid: r.id }; }
+  return { nom: it.nom || "Repas libre", q: `≈ ${fmt(it.kcal || 0)} kcal`, how: "Repas libre" };
+}
+function slotHtml(k) {
+  const [d, m] = k.split("-"), meal = S.menu.slots[k];
+  if (!meal || !meal.items || !meal.items.length) return `<div class="slot"><div class="sh"><span class="lab">${MEALN[m]}</span></div><button class="btn ghost small" data-sedit="${k}" style="justify-self:start">Choisir un repas</button></div>`;
+  const n = MN.mealNut(meal);
+  const lines = meal.items.map(itemLine).filter(Boolean);
+  const hows = [...new Set(lines.map(l => l.how).filter(h => h && h !== "Sans cuisson" && !/^Sans cuisson/.test(h)))];
+  return `<div class="slot ${meal.fixe ? "fixe" : ""}">
+    <div class="sh"><span class="lab">${MEALN[m]}${meal.fixe ? ` <span class="tag">Fixé</span>` : ""}</span><span class="row" style="flex-wrap:nowrap;gap:6px"><span class="note num">${fmt(n.kcal)} kcal</span>${n.libre ? "" : gradeBadge(n.ns.grade)}</span></div>
+    <ul>${lines.map(l => `<li><span>${l.rid ? `<a href="#" data-open="${esc(l.rid)}">${esc(l.nom)}</a>` : esc(l.nom)}</span><span class="q">${esc(l.q)}</span></li>`).join("")}</ul>
+    ${hows.length ? `<div class="how">${esc(hows.join(" · "))}</div>` : ""}
+    <div class="acts"><button class="btn ghost small" data-sfix="${k}">${meal.fixe ? "Libérer" : "Fixer"}</button>${meal.fixe ? "" : `<button class="btn ghost small" data-sredo="${k}">Autre proposition</button>`}<button class="btn ghost small" data-sedit="${k}">Modifier</button></div>
+  </div>`;
+}
+function renderMenu() {
+  if (!MN.products().length) return;
+  const c = calc(), W = MN.weekTarget(c.day, S.menu.pct), st = MN.stats(S.menu.slots);
+  $("#mn-pct").value = S.menu.pct; $("#mn-rec").setAttribute("aria-pressed", !!S.menu.recettes);
+  $("#mn-tot").textContent = `${fmt(st.kcal)} / ${fmt(W)}`;
+  $("#mn-veg").textContent = `${st.veg} / ${st.filled || 14}`;
+  $("#mn-gauge").firstElementChild.style.width = Math.min(100, st.kcal / W * 100) + "%";
+  const notes = [];
+  if (!st.filled) notes.push("Commence par fixer les repas que vous mangez sûrement (touche « Choisir un repas »), puis touche « Compléter la semaine ».");
+  else {
+    const diff = st.kcal - W;
+    notes.push(st.filled < 14 ? `${14 - st.filled} repas restent à choisir.` : Math.abs(diff) < W * 0.04 ? "La semaine tombe pile sur ta cible." : diff > 0 ? `Tu dépasses ta cible de ${fmt(diff)} kcal sur la semaine.` : `Il te reste ${fmt(-diff)} kcal sous ta cible.`);
+    const fish = (st.fam.poisson || 0) + (st.fam.poisson_gras || 0);
+    notes.push(fish >= 2 ? `Poisson ${fish} fois : c'est le repère.` : `Poisson ${fish} fois : le repère est de deux fois par semaine.`);
+    if ((st.fam.viande_rouge || 0) > 3) notes.push(`Viande rouge ${st.fam.viande_rouge} fois : un peu beaucoup.`);
+    if ((st.fam.charcuterie || 0) > 2) notes.push(`Charcuterie ${st.fam.charcuterie} fois : à limiter.`);
+    if (st.filled && st.veg < st.filled * 0.7) notes.push("Ajoute un légume aux repas qui n'en ont pas (épinards, haricots verts, salade en sachet).");
+  }
+  notes.push(`Cible : ${S.menu.pct} % de tes ${fmt(c.day * 7)} kcal de la semaine, le reste pour petits-déjeuners et collations. Les quantités affichées sont les tiennes.`);
+  $("#mn-note").textContent = notes.join(" ");
+  $("#mn-days").innerHTML = DAYN.map((dn, d) => `<div class="day"><h3>${dn}</h3>${slotHtml(d + "-dej")}${slotHtml(d + "-din")}</div>`).join("");
+  renderProds();
+}
+function renderProds() {
+  const q = N.norm($("#mn-q").value || ""), fav = favSet(), ex = exclSet();
+  const list = MN.products().filter(p => !q || N.norm(p.nom).includes(q));
+  $("#mn-prods").innerHTML = Object.keys(MN.ROLE_LABEL).map(role => {
+    const ps = list.filter(p => p.role === role).sort((a, b) => (fav.has(b.id) - fav.has(a.id)) || a.nom.localeCompare(b.nom, "fr"));
+    if (!ps.length) return "";
+    return `<details ${q ? "open" : ""}><summary>${MN.ROLE_LABEL[role]} (${ps.length})</summary>${ps.map(p => `<div class="prow"><div style="min-width:0"><div>${esc(p.nom)} ${p.mine ? `<span class="tag">Scanné</span>` : ""}</div><div class="note">${fmt(p.n[0] * p.portion / 100)} kcal la portion · ${esc(MN.MODE_LABEL[p.mode] || "")}</div></div><button class="ic fav" data-pfav="${esc(p.id)}" aria-pressed="${fav.has(p.id)}" aria-label="Favori">★</button>${p.mine ? `<button class="ic" data-pdel="${esc(p.id)}" aria-label="Supprimer">⌫</button>` : `<button class="ic no" data-pno="${esc(p.id)}" aria-pressed="${ex.has(p.id)}" aria-label="Ne jamais proposer">⊘</button>`}</div>`).join("")}</details>`;
+  }).join("");
+}
+function fillCfg(extra) { const c = calc(); return Object.assign({ dayKcal: c.day, pct: S.menu.pct, fav: favSet(), excl: exclSet(), recettes: S.menu.recettes, seed: (Date.now() ^ (Math.random() * 1e9)) >>> 0 }, extra || {}); }
+function bindMenu() {
+  $("#mn-fill").addEventListener("click", () => {
+    S.menu.slots = MN.fill(S.menu.slots, fillCfg()); save(); renderMenu(); renderCourses();
+    toast("Semaine complétée. Fixe ce qui te plaît, change le reste.");
+  });
+  $("#mn-clear").addEventListener("click", () => { for (const k of Object.keys(S.menu.slots)) if (!S.menu.slots[k].fixe) delete S.menu.slots[k]; save(); renderMenu(); renderCourses(); });
+  $("#mn-pct").addEventListener("change", e => { S.menu.pct = +e.target.value; save(); renderMenu(); });
+  $("#mn-rec").addEventListener("click", () => { S.menu.recettes = !S.menu.recettes; save(); renderMenu(); });
+  $("#mn-q").addEventListener("input", renderProds);
+  $("#mn-prods").addEventListener("click", e => {
+    const f = e.target.closest("[data-pfav]"); if (f) { const id = f.dataset.pfav; S.menu.fav = S.menu.fav.includes(id) ? S.menu.fav.filter(x => x !== id) : [...S.menu.fav, id]; S.menu.excl = S.menu.excl.filter(x => x !== id); save(); renderProds(); return; }
+    const n = e.target.closest("[data-pno]"); if (n) { const id = n.dataset.pno; S.menu.excl = S.menu.excl.includes(id) ? S.menu.excl.filter(x => x !== id) : [...S.menu.excl, id]; S.menu.fav = S.menu.fav.filter(x => x !== id); save(); renderProds(); return; }
+    const d = e.target.closest("[data-pdel]"); if (d) { const id = d.dataset.pdel; S.mesProduits = S.mesProduits.filter(p => p.id !== id); for (const k in S.menu.slots) { S.menu.slots[k].items = S.menu.slots[k].items.filter(it => it.id !== id); if (!S.menu.slots[k].items.length) delete S.menu.slots[k]; } refreshProducts(); save(); renderMenu(); renderCourses(); toast("Produit supprimé"); }
+  });
+  $("#mn-days").addEventListener("click", e => {
+    const o = e.target.closest("[data-open]"); if (o) { e.preventDefault(); return; }
+    const fx = e.target.closest("[data-sfix]"); if (fx) { const m = S.menu.slots[fx.dataset.sfix]; if (m) { m.fixe = !m.fixe; save(); renderMenu(); } return; }
+    const rd = e.target.closest("[data-sredo]"); if (rd) { S.menu.slots = MN.fill(S.menu.slots, fillCfg({ only: rd.dataset.sredo })); save(); renderMenu(); renderCourses(); return; }
+    const ed = e.target.closest("[data-sedit]"); if (ed) openSlot(ed.dataset.sedit);
+  });
+}
+let edit = null;
+function openSlot(k) {
+  const [d, m] = k.split("-");
+  const cur = S.menu.slots[k];
+  edit = { k, items: cur ? clone(cur.items) : [], fixe: cur ? !!cur.fixe || !cur.items.length : true, q: "" };
+  if (!cur) edit.fixe = true;
+  openSheet(`<header><div><h2>${DAYN[+d]} · ${MEALN[m]}</h2><p class="note">Ce que tu mets ici compte pour toi ; la liste de courses ajoute les portions des autres.</p></div><button class="x" data-close aria-label="Fermer">×</button></header><div id="ed-body"></div>`);
+  const sb = $("#sheetBody");
+  sb.onclick = e => {
+    const add = e.target.closest("[data-eadd]"); if (add) { const [kind, id] = add.dataset.eadd.split("|"); edit.items.push({ k: kind, id, q: 1 }); renderEdit(); return; }
+    const st = e.target.closest("[data-eq]"); if (st) { const it = edit.items[+st.dataset.eq]; it.q = Math.max(0.25, Math.min(3, (it.q || 1) + (+st.dataset.d))); renderEdit(); return; }
+    const rm = e.target.closest("[data-erm]"); if (rm) { edit.items.splice(+rm.dataset.erm, 1); renderEdit(); return; }
+    if (e.target.id === "ed-libre") { const nom = $("#ed-ln").value.trim() || "Repas libre", kcal = +$("#ed-lk").value || 800; edit.items.push({ k: "x", nom, kcal }); renderEdit(); return; }
+    if (e.target.id === "ed-save") { if (edit.items.length) S.menu.slots[edit.k] = { items: edit.items, fixe: edit.fixe }; else delete S.menu.slots[edit.k]; save(); renderMenu(); renderCourses(); $("#sheet").close(); return; }
+    if (e.target.id === "ed-empty") { delete S.menu.slots[edit.k]; save(); renderMenu(); renderCourses(); $("#sheet").close(); return; }
+    if (e.target.id === "ed-fixe") { edit.fixe = e.target.checked; return; }
+  };
+  sb.oninput = e => { if (e.target.id === "ed-q") { edit.q = e.target.value; renderPick(); } };
+  renderEdit();
+}
+function renderEdit() {
+  const n = MN.mealNut({ items: edit.items });
+  $("#ed-body").innerHTML = `
+  ${edit.items.length ? `<div style="display:grid;gap:8px">${edit.items.map((it, i) => { const l = itemLine(it); return `<div class="prow" style="grid-template-columns:1fr auto auto"><div style="min-width:0"><div>${esc(l.nom)}</div><div class="note">${esc(l.q)}</div></div>${it.k === "x" ? "<span></span>" : `<div class="qty"><button data-eq="${i}" data-d="-0.25" aria-label="Moins">−</button><button data-eq="${i}" data-d="0.25" aria-label="Plus">+</button></div>`}<button class="x" data-erm="${i}" aria-label="Retirer">×</button></div>`; }).join("")}</div>
+  <div class="row" style="flex-wrap:nowrap">${n.libre ? "" : gradeBadge(n.ns.grade)}<span class="k num">${fmt(n.kcal)} kcal pour toi</span></div>` : `<p class="note">Ajoute un ou plusieurs produits ci-dessous.</p>`}
+  <label class="row" style="gap:8px"><input type="checkbox" id="ed-fixe" ${edit.fixe ? "checked" : ""} style="width:20px;height:20px"> Fixer ce repas (l'appli n'y touchera pas)</label>
+  <div class="row"><button class="btn" id="ed-save">Enregistrer</button><button class="btn ghost" id="ed-empty">Vider ce repas</button></div>
+  <h3>Ajouter</h3>
+  <input id="ed-q" type="search" placeholder="Tarte, tenders, épinards, pastabox…" value="${esc(edit.q)}">
+  <div class="pick" id="ed-pick"></div>
+  <details><summary>Repas dehors ou libre</summary><div class="row" style="margin-top:8px"><input id="ed-ln" placeholder="Ex. : restaurant, chez des amis" style="flex:2"><input id="ed-lk" type="number" inputmode="numeric" placeholder="kcal" value="900" style="flex:1"><button class="btn ghost small" id="ed-libre">Ajouter</button></div><p class="note">Ordre de grandeur : sandwich 450, menu fast-food 1 000, restaurant 900 à 1 200, raclette 1 200.</p></details>`;
+  renderPick();
+}
+function renderPick() {
+  const q = N.norm(edit.q || ""), fav = favSet();
+  let ps = MN.products().filter(p => !q || N.norm(p.nom).includes(q));
+  ps.sort((a, b) => (fav.has(b.id) - fav.has(a.id)) || ((b.mine ? 1 : 0) - (a.mine ? 1 : 0)) || a.nom.localeCompare(b.nom, "fr"));
+  if (!q) ps = ps.filter(p => fav.has(p.id) || p.mine).concat(ps.filter(p => !fav.has(p.id) && !p.mine && p.role === "plat")).slice(0, 25);
+  const rs = q && q.length >= 3 ? N.recipes().filter(r => N.norm(r.nom).includes(q)).slice(0, 8) : [];
+  $("#ed-pick").innerHTML = ps.slice(0, 40).map(p => `<button data-eadd="p|${esc(p.id)}"><span>${fav.has(p.id) ? "★ " : ""}${esc(p.nom)}</span><span class="note">${fmt(p.n[0] * p.portion / 100)} kcal</span></button>`).join("")
+    + rs.map(r => `<button data-eadd="r|${esc(r.id)}"><span>Recette : ${esc(r.nom)}</span><span class="note">${fmt(r._n.kcal)} kcal</span></button>`).join("")
+    || `<p class="note" style="padding:8px 0">Aucun produit trouvé. Scanne-le dans l'onglet Scanner pour l'ajouter.</p>`;
+}
+
+/* ---------- Mes produits (depuis le scan) ---------- */
+function guessRole(cats, name) {
+  const c = cats.join(" ") + " " + N.norm(name);
+  if (/yogurt|cheese|fromage|dairy|dairies|skyr/.test(c) && !/meal/.test(c)) return "laitier";
+  if (/dessert|biscuit|cake|chocolate|cookie|sweet/.test(c)) return "dessert";
+  if (/fruit|compote|apple|banana/.test(c) && !/juice/.test(c)) return "fruit";
+  if (/frite|french-fries|potato|pasta|rice|semolina|tabbouleh|taboule|bread|gnocchi|puree/.test(c) && !/meal|dishes/.test(c)) return "accomp";
+  if (/vegetable|spinach|epinard|soup|salad|bean|pea/.test(c) && !/meal|dishes|pizza/.test(c)) return "legume";
+  if (/breaded|nugget|tender|meat|poultr|chicken|fish|ham|sausage|egg|tofu|steak|falafel/.test(c) && !/meal|dishes|pizza|sandwich/.test(c)) return "proteine";
+  return "plat";
+}
+function guessFamille(cats) {
+  const c = cats.join(" ");
+  if (/salmon|mackerel|sardine/.test(c)) return "poisson_gras";
+  if (/fish|seafood|tuna/.test(c)) return "poisson";
+  if (/poultr|chicken|turkey/.test(c)) return "volaille";
+  if (/ham|sausage|bacon|charcuter|salami/.test(c)) return "charcuterie";
+  if (/beef|veal|lamb|pork/.test(c)) return "viande_rouge";
+  if (/egg/.test(c)) return "oeuf";
+  if (/legume|lentil|chickpea|beans/.test(c)) return "legumineuse";
+  if (/cheese/.test(c)) return "fromage";
+  return "aucune";
+}
+const ROLE_PORTION = { plat: 350, proteine: 130, accomp: 200, legume: 200, fruit: 120, laitier: 125, dessert: 100 };
+const ROLE_RAYON = { plat: "F", proteine: "V", accomp: "E", legume: "S", fruit: "L", laitier: "F", dessert: "F" };
+function openAddMine(p) {
+  const cats = p.categories_tags || [], role = guessRole(cats, pname(p));
+  const frozen = cats.some(c => /frozen/.test(c));
+  const ovenish = /pizza|quiche|tart|pie|tourte|feuillet|croque/.test(cats.join(" ") + " " + N.norm(pname(p)));
+  const mode = ovenish ? "airfryer" : role === "fruit" || role === "laitier" || role === "dessert" ? "sans" : frozen && /proteine|accomp/.test(role) ? "airfryer" : role === "plat" ? "micro" : role === "legume" ? (frozen ? "casserole" : "sans") : "poele";
+  const portion = Math.round(+p.serving_quantity || ROLE_PORTION[role]);
+  const pack = Math.round(+p.product_quantity || portion * 2);
+  const opt = (o, v) => Object.entries(o).map(([k, l]) => `<option value="${k}" ${k === v ? "selected" : ""}>${l}</option>`).join("");
+  const exist = S.mesProduits.find(x => x.id === "m-" + p.code);
+  openSheet(`<header><div><h2>Ajouter à Mes produits</h2><p class="note">Vérifie ces réglages : ils servent à composer les menus.</p></div><button class="x" data-close aria-label="Fermer">×</button></header>
+  <div class="grid2">
+    <label class="f" style="grid-column:1/-1">Nom<input id="am-nom" value="${esc(exist ? exist.nom : pname(p))}"></label>
+    <label class="f">C'est plutôt<select id="am-role">${opt({ plat: "un plat complet", proteine: "une viande, poisson ou équivalent", accomp: "un accompagnement", legume: "un légume", fruit: "un fruit", laitier: "un laitage ou fromage", dessert: "un dessert" }, exist ? exist.role : role)}</select></label>
+    <label class="f">Préparation<select id="am-mode">${opt(MN.MODE_LABEL, exist ? exist.mode : mode)}</select></label>
+    <label class="f">Une portion pour toi (g)<input id="am-por" type="number" inputmode="numeric" value="${exist ? exist.portion : portion}"></label>
+    <label class="f">Contenu du paquet (g)<input id="am-pack" type="number" inputmode="numeric" value="${exist ? exist.pack : pack}"></label>
+    <label class="f" style="grid-column:1/-1">Consigne (facultatif)<input id="am-cons" placeholder="Ex. : air fryer 180 °C, 12 min" value="${esc(exist ? exist.conseil : "")}"></label>
+    <label class="f">Protéine principale<select id="am-fam">${opt({ aucune: "aucune / mélange", volaille: "volaille", viande_rouge: "bœuf, porc, agneau", charcuterie: "charcuterie", poisson: "poisson", poisson_gras: "poisson gras", oeuf: "œufs", legumineuse: "légumineuses", fromage: "fromage" }, exist ? exist.famille : guessFamille(cats))}</select></label>
+    <label class="row" style="gap:8px;align-self:end"><input type="checkbox" id="am-veg" style="width:20px;height:20px" ${(exist ? exist.veg : /vegetable|legume/.test(cats.join(" "))) ? "checked" : ""}> Contient des légumes</label>
+  </div>
+  <button class="btn" id="am-save">Enregistrer</button>`);
+  $("#sheetBody").onclick = e => {
+    if (e.target.id !== "am-save") return;
+    const nm = p.nutriments || {}, v = k => +nm[k] || 0;
+    const r = $("#am-role").value;
+    const prod = {
+      id: "m-" + p.code, ean: p.code, mine: true, nom: $("#am-nom").value.trim() || pname(p), role: r, mode: $("#am-mode").value,
+      temps: 10, conseil: $("#am-cons").value.trim(), portion: Math.max(10, +$("#am-por").value || ROLE_PORTION[r]), pack: Math.max(10, +$("#am-pack").value || 0),
+      packLabel: (p.quantity ? "paquet de " + p.quantity : "paquet"), code: null, cn: "Open Food Facts",
+      n: [v("energy-kcal_100g") || v("energy_100g") / 4.184, v("proteins_100g"), v("carbohydrates_100g"), v("fat_100g"), v("sugars_100g"), v("fiber_100g"), v("saturated-fat_100g"), v("salt_100g")],
+      r: ROLE_RAYON[r], px: 8, fv: r === "legume" || r === "fruit", veg: $("#am-veg").checked, famille: $("#am-fam").value, vege: !["volaille", "viande_rouge", "charcuterie", "poisson", "poisson_gras"].includes($("#am-fam").value), ns: goodGrade(p.nutriscore_grade) ? p.nutriscore_grade : ""
+    };
+    S.mesProduits = [prod, ...S.mesProduits.filter(x => x.id !== prod.id)];
+    if (!S.menu.fav.includes(prod.id)) S.menu.fav.push(prod.id);
+    refreshProducts(); save(); renderMenu(); $("#sheet").close(); toast("Ajouté à Mes produits et à tes favoris");
+  };
+}
+
+/* ---------- Open Prices ---------- */
+const PRICES = "https://prices.openfoodfacts.org/api/v1/prices";
+async function loadPrices(code, el) {
+  el.innerHTML = `<p class="skel">Recherche des prix relevés…</p>`;
+  try {
+    const r = await fetch(`${PRICES}?product_code=${encodeURIComponent(code)}&order_by=-date&size=10`, { headers: { Accept: "application/json" } });
+    if (!r.ok) throw new Error("http");
+    const j = await r.json();
+    const items = (j.items || []).filter(x => x.price != null && (!x.currency || x.currency === "EUR"));
+    if (!items.length) { el.innerHTML = `<p class="note">Aucun prix relevé pour ce produit pour l'instant. Tu peux en ajouter un sur <a href="https://prices.openfoodfacts.org" target="_blank" rel="noopener">Open Prices</a>, en photographiant l'étiquette ou ton ticket.</p>`; return; }
+    const ps = items.map(x => +x.price).sort((a, b) => a - b), med = ps[Math.floor(ps.length / 2)];
+    const first = items[0], loc = first.location || {};
+    S.prix[code] = { t: Date.now(), p: +first.price, med, store: loc.osm_name || "", date: first.date };
+    save();
+    el.innerHTML = `<p><span class="k">Prix médian relevé : ${dec(med, 2)} €</span> <span class="note">(de ${dec(ps[0], 2)} € à ${dec(ps[ps.length - 1], 2)} €, ${items.length} relevé${items.length > 1 ? "s" : ""})</span></p><div class="prices">${items.map(x => { const l = x.location || {}; return `<div class="pr"><span>${esc(l.osm_name || "Magasin")}${l.osm_address_city ? `, ${esc(l.osm_address_city)}` : ""}<br><span class="note">${x.date ? new Date(x.date).toLocaleDateString("fr-FR") : ""}${x.price_is_discounted ? " · en promotion" : ""}</span></span><span class="k num">${dec(x.price, 2)} €</span></div>`; }).join("")}</div><p class="note">Prix relevés par des contributeurs d'Open Prices, sur tickets et étiquettes.</p>`;
+  } catch (e) { el.innerHTML = `<p class="note">Les prix n'ont pas pu être chargés (connexion ?). Réessaie plus tard.</p>`; }
 }
 
 /* ---------- Plats ---------- */
@@ -208,7 +423,7 @@ function nutTable(n, per) {
   const rows = [["Énergie", fmt(n.kcal) + " kcal"], ["Protéines", dec(n.prot) + " g"], ["Glucides", dec(n.gluc) + " g"], ["dont sucres", dec(n.suc) + " g"], ["Lipides", dec(n.lip) + " g"], ["dont acides gras saturés", dec(n.ags) + " g"], ["Fibres", dec(n.fib) + " g"], ["Sel", dec(n.sel, 2) + " g"]];
   return `<table class="nut"><tbody>${rows.map(r => `<tr><td>${r[0]}</td><td>${r[1]}</td></tr>`).join("")}</tbody></table><p class="note">${per}. Fruits, légumes et légumineuses : ${Math.round(n.fvPct)} % du poids.</p>`;
 }
-function openSheet(html) { $("#sheetBody").innerHTML = html; const d = $("#sheet"); if (!d.open) d.showModal(); d.scrollTop = 0; }
+function openSheet(html) { const sb = $("#sheetBody"); sb.onclick = null; sb.oninput = null; sb.onchange = null; sb.innerHTML = html; const d = $("#sheet"); if (!d.open) d.showModal(); d.scrollTop = 0; }
 $("#sheet") && $("#sheet").addEventListener("click", e => { if (e.target.id === "sheet") $("#sheet").close(); });
 function openRecipe(id) {
   const r = N.recipe(id); if (!r) return;
@@ -253,11 +468,20 @@ function aggregate() {
     }
     else if (d.legacy) for (const x of d.legacy.ing || []) add("l:" + String(x.n).toLowerCase() + "|" + x.u, x.n, x.r in RAYONS ? x.r : "E", (x.q || 0) * pers, (x.p || 0) * pers * (st.f[x.r] || 1), null, x.u);
   }
+  // menu de la semaine : produits (en paquets) et recettes
+  const pf = (pers - 1) * (+S.courses.autre || 1);
+  for (const e of MN.shopping(S.menu.slots, pf)) {
+    const pr = e.ean && S.prix[e.ean];
+    const txt = (e.packs ? `${e.packs} × ${e.packLabel}` : N.roundG(e.g)) + (pr ? ` · ${dec(pr.med, 2)} € relevé` : "");
+    m.set("p:" + e.id, { id: "p:" + e.id, name: e.nom, r: e.r in RAYONS ? e.r : "E", g: e.g, cost: pr && e.packs ? pr.med * e.packs : e.cost, key: null, fixed: txt });
+  }
+  for (const u of MN.recipeUses(S.menu.slots, pf)) { const r = N.recipe(u.id); if (!r) continue; for (const [k, g] of r.ing) { const i = N.ing(k); add("k:" + k, i.l, i.r, g * u.factor, g * u.factor / 1000 * i.px * (st.f[i.r] || 1), k); } }
   for (const x of S.courses.extra) add("x:" + x.id, x.nom, x.r || "D", 0, 0);
   for (const e of m.values()) cost += e.cost;
   return { items: [...m.values()], cost };
 }
 function qtyText(e) {
+  if (e.fixed) return e.fixed;
   if (e.id.startsWith("x:")) return "";
   if (e.key) return e.r === "P" ? "" : N.shopQty(e.key, e.g);
   if (e.txt !== null && e.txt !== undefined) { const n = e.g; return !n ? "" : e.txt === "g" || e.txt === "ml" ? N.roundG(n, e.txt === "ml") : Math.ceil(n - 1e-9) + (e.txt && e.txt !== "pc" ? " " + e.txt : ""); }
@@ -267,9 +491,11 @@ function renderCourses() {
   $("#c-mag").value = S.courses.mag; $("#c-pers").value = S.courses.pers;
   $("#c-tip").textContent = (STORES[S.courses.mag] || STORES.super).tip;
   const { items, cost } = aggregate();
-  $("#c-nb").textContent = S.semaine.length;
-  $("#c-cout").textContent = S.semaine.length ? Math.round(cost) + " €" : "–";
-  if (!items.length) { $("#shopList").innerHTML = `<h2>Ta liste</h2><p class="note">Ajoute des plats à ta semaine (onglet Plats ou Importer) : la liste se remplit toute seule, quantités comprises.</p>`; return; }
+  const nbMenu = Object.values(S.menu.slots).filter(m => m.items && m.items.length).length;
+  $("#c-nb").textContent = S.semaine.length + nbMenu;
+  $("#c-cout").textContent = items.length ? Math.round(cost) + " €" : "–";
+  $("#c-autre").value = String(S.courses.autre || 1); $("#c-autreL").hidden = (+S.courses.pers || 1) < 2;
+  if (!items.length) { $("#shopList").innerHTML = `<h2>Ta liste</h2><p class="note">Compose ton menu (onglet Menu) ou ajoute des recettes : la liste se remplit toute seule, quantités comprises.</p>`; return; }
   let html = "<h2>Ta liste</h2>";
   for (const r of Object.keys(RAYONS)) {
     const its = items.filter(e => e.r === r).sort((a, b) => a.name.localeCompare(b.name, "fr")); if (!its.length) continue;
@@ -286,6 +512,7 @@ function addExtra(nom, r) { if (!nom) return; S.courses.extra.push({ id: Date.no
 function bindCourses() {
   $("#c-mag").addEventListener("change", () => { S.courses.mag = $("#c-mag").value; renderCourses(); save(); });
   $("#c-pers").addEventListener("change", () => { S.courses.pers = Math.max(1, Math.min(10, +$("#c-pers").value || 1)); renderCourses(); save(); });
+  $("#c-autre").addEventListener("change", () => { S.courses.autre = +$("#c-autre").value || 1; renderCourses(); save(); });
   $("#shopList").addEventListener("change", e => { const c = e.target.closest("[data-ck]"); if (!c) return; if (c.checked) S.courses.coche[c.dataset.ck] = 1; else delete S.courses.coche[c.dataset.ck]; c.closest("li").classList.toggle("done", c.checked); save(); });
   $("#c-addBtn").addEventListener("click", () => { const v = $("#c-add").value.trim(); const k = N.matchIngredient(v); addExtra(v, k ? N.ing(k).r : "D"); $("#c-add").value = ""; });
   $("#c-add").addEventListener("keydown", e => { if (e.key === "Enter") $("#c-addBtn").click(); });
@@ -299,7 +526,7 @@ function bindCourses() {
 
 /* ---------- Scanner ---------- */
 const OFF = "https://world.openfoodfacts.org";
-const OFF_FIELDS = "code,product_name_fr,product_name,brands,quantity,nutriscore_grade,nova_group,categories_tags,categories_hierarchy,image_front_small_url,nutriments,additives_tags,countries_tags";
+const OFF_FIELDS = "code,product_name_fr,product_name,brands,quantity,product_quantity,serving_quantity,nutriscore_grade,nova_group,categories_tags,categories_hierarchy,image_front_small_url,nutriments,additives_tags,countries_tags";
 let scanStream = null, scanLoop = null, zxReader = null;
 function scanErr(t) { const el = $("#scanErr"); el.textContent = t || ""; el.hidden = !t; }
 async function openScanner() {
@@ -395,11 +622,14 @@ function showProduct(p) {
     <div class="prod">${p.image_front_small_url ? `<img src="${esc(p.image_front_small_url)}" alt="">` : `<div class="ph"></div>`}<div style="min-width:0"><h2 style="font-size:1.15rem">${esc(pname(p))}</h2><p class="note">${esc([p.brands, p.quantity].filter(Boolean).join(" · "))}</p></div></div>
     <div class="row">${gradeBadge(g, true)}<div><div class="k">${g ? "Nutri-Score " + g.toUpperCase() : "Nutri-Score non calculé"}</div><div class="note">${nova ? "NOVA " + nova + " : " + novaTxt : "Niveau de transformation inconnu"}${adds ? ` · ${adds} additif${adds > 1 ? "s" : ""}` : ""}</div></div></div>
     ${kcal != null ? `<table class="nut"><tbody><tr><td>Énergie (100 g)</td><td>${fmt(kcal)} kcal</td></tr>${sugar != null ? `<tr><td>Sucres</td><td>${dec(sugar)} g</td></tr>` : ""}${fat != null ? `<tr><td>Graisses saturées</td><td>${dec(fat)} g</td></tr>` : ""}${salt != null ? `<tr><td>Sel</td><td>${dec(salt, 2)} g</td></tr>` : ""}</tbody></table>` : ""}
-    <div class="row"><button class="btn" id="pr-add">Ajouter à ma liste</button><a class="btn ghost" href="https://fr.openfoodfacts.org/produit/${esc(p.code)}" target="_blank" rel="noopener">Fiche complète</a></div>
+    <div class="row"><button class="btn" id="pr-mine">${S.mesProduits.some(x => x.id === "m-" + p.code) ? "Modifier dans Mes produits" : "Ajouter à Mes produits"}</button><button class="btn ghost" id="pr-add">Ajouter à ma liste</button><a class="btn ghost" href="https://fr.openfoodfacts.org/produit/${esc(p.code)}" target="_blank" rel="noopener">Fiche complète</a></div>
   </div>
+  <div class="card"><h3>Prix relevés</h3><div id="pr-prices"></div></div>
   <div class="card"><h3>${g && g !== "a" ? "Mieux noté dans le même rayon" : "Autres produits du rayon"}</h3><div id="pr-alts" class="list"><p class="skel">Recherche…</p></div></div>
   <div class="card"><h3>Recettes avec ce produit</h3>${recs.length ? `<div class="list">${recs.map(r => dishRow(r)).join("")}</div>` : `<p class="note">Aucune recette de la base n'utilise ce type de produit.</p>`}
   <button class="btn ghost" id="pr-claude">Demander une recette à Claude</button></div>`;
+  $("#pr-mine").onclick = () => openAddMine(p);
+  loadPrices(p.code, $("#pr-prices"));
   $("#pr-add").onclick = () => { addExtra(pname(p) + (p.brands ? " (" + p.brands.split(",")[0] + ")" : ""), ray); toast("Ajouté à ta liste de courses"); };
   $("#pr-claude").onclick = () => askClaude(`${profileText()}\nJ'ai acheté ce produit : « ${pname(p)} »${p.brands ? " de " + p.brands : ""} (Nutri-Score ${g ? g.toUpperCase() : "inconnu"}). Propose-moi deux recettes simples et équilibrées qui l'utilisent, avec quantités et étapes.`);
   loadAlternatives(p, g);
@@ -657,15 +887,16 @@ function handleShare() {
   return true;
 }
 
-function renderAll() { renderObjectif(); renderPlats(); renderHabitudes(); renderPlaisir(); renderCourses(); renderCarnet(); renderScanHist(); renderSaison(); }
+function renderAll() { refreshProducts(); renderMenu(); renderObjectif(); renderPlats(); renderHabitudes(); renderPlaisir(); renderCourses(); renderCarnet(); renderScanHist(); renderSaison(); }
 
 async function start() {
   load();
   try {
-    const [ing, rec] = await Promise.all([fetch("data/ingredients.json").then(r => r.json()), fetch("data/recettes.json").then(r => r.json())]);
+    const [ing, rec, prod] = await Promise.all([fetch("data/ingredients.json").then(r => r.json()), fetch("data/recettes.json").then(r => r.json()), fetch("data/produits.json").then(r => r.json())]);
     N.init(ing, rec);
+    CATALOG = prod; MN.init(N, []); refreshProducts();
   } catch (e) { document.body.insertAdjacentHTML("afterbegin", `<p class="err" style="padding:16px">Les données n'ont pas pu être chargées. Vérifie ta connexion puis recharge la page.</p>`); return; }
-  bindObjectif(); bindPlats(); bindScanner(); bindCourses(); bindHabitudes(); bindPlaisir(); bindFrigo(); bindBatch(); bindImporter(); bindReglages();
+  bindObjectif(); bindMenu(); bindPlats(); bindScanner(); bindCourses(); bindHabitudes(); bindPlaisir(); bindFrigo(); bindBatch(); bindImporter(); bindReglages();
   $("#s-month").addEventListener("change", e => renderSaison(+e.target.value));
   $("#s-plats").addEventListener("click", () => { S.f.saison = true; S.f.cat = "tout"; renderPlats(); showTab("plats"); save(); });
   renderAll();
